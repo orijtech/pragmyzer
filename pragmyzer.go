@@ -17,7 +17,7 @@ package pragmyzer
 import (
 	"go/ast"
 	"go/types"
-	"strings"
+	"regexp"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -34,6 +34,7 @@ which is invalid and will silently be treated as a comment.
 var Analyzer = &analysis.Analyzer{
 	Name:     "pragmyzer",
 	Doc:      doc,
+	Run:      run,
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
 }
 
@@ -46,8 +47,10 @@ func imports(pkg *types.Package, target string) bool {
 	return false
 }
 
+var reBadPragma = regexp.MustCompile(`\s*//\s+go:`)
+
 func run(pass *analysis.Pass) (interface{}, error) {
-	if !imports(pass.Pkg, "embed") {
+	if false && !imports(pass.Pkg, "embed") {
 		return nil, nil
 	}
 
@@ -59,7 +62,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	fset := pass.Fset
 	inspect.Preorder(nodeFilter, func(n ast.Node) {
-		// 1. Reject anything that doesn't import "_ embed"
 		// Look for the last comment before the variable and see if it has go:embed
 		// Find the comments for each node.
 		f := n.(*ast.File)
@@ -69,15 +71,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, cgL := range cmap {
 			for _, cg := range cgL {
 				for _, comment := range cg.List {
-					if !strings.HasPrefix(comment.Text, " ") {
+					if !reBadPragma.MatchString(comment.Text) {
 						continue
 					}
-
-					trimmed := strings.TrimSpace(comment.Text)
-					if !strings.HasPrefix(trimmed, "go:") {
-						continue
-					}
-					pass.ReportRangef(comment, "pragmas should NOT have a space")
+					pass.ReportRangef(comment, "pragmas should NOT have a leading space\nGot:  %q\nWant: %q", comment.Text, reBadPragma.ReplaceAllLiteralString(comment.Text, "//go:"))
 				}
 			}
 		}
