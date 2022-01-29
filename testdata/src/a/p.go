@@ -16,7 +16,7 @@ package p
 
 import _ "embed"
 
-// go:embed hello.txt
+// go:embed hello.txt // want "pragmas should not have a leading space"
 var file string
 
 func main() {
